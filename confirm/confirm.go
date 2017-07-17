@@ -11,8 +11,8 @@ import (
 	"net/url"
 	"path"
 
-	"gopkg.in/authboss.v1"
-	"gopkg.in/authboss.v1/internal/response"
+	"github.com/ghmulti/authboss"
+	"github.com/ghmulti/authboss/internal/response"
 )
 
 // Storer and FormValue constants
@@ -163,14 +163,14 @@ func (c *Confirm) confirmEmail(ctx *authboss.Context, to, token string) {
 func (c *Confirm) confirmHandler(ctx *authboss.Context, w http.ResponseWriter, r *http.Request) error {
 	token := r.FormValue(FormValueConfirm)
 	if len(token) == 0 {
-		return authboss.ClientDataErr{Name: FormValueConfirm}
+		procErr := authboss.ProcessingError{Name: FormValueConfirm + " is required"}
+		return c.ResponseProcessor(ctx, w, r, authboss.ResponseData{Id: authboss.ResponseIdConfirm, Error: &procErr})
 	}
 
 	toHash, err := base64.URLEncoding.DecodeString(token)
 	if err != nil {
-		return authboss.ErrAndRedirect{
-			Location: "/", Err: fmt.Errorf("confirm: token failed to decode %q => %v\n", token, err),
-		}
+		procErr := authboss.ProcessingError{Name:"confirm: token failed to decode", Code:http.StatusBadRequest}
+		return c.ResponseProcessor(ctx, w, r, authboss.ResponseData{Id: authboss.ResponseIdConfirm, Error: &procErr})
 	}
 
 	sum := md5.Sum(toHash)
@@ -178,7 +178,8 @@ func (c *Confirm) confirmHandler(ctx *authboss.Context, w http.ResponseWriter, r
 	dbTok := base64.StdEncoding.EncodeToString(sum[:])
 	user, err := ctx.Storer.(ConfirmStorer).ConfirmUser(dbTok)
 	if err == authboss.ErrUserNotFound {
-		return authboss.ErrAndRedirect{Location: "/", Err: errors.New("confirm: token not found")}
+		procErr := authboss.ProcessingError{Name: "confirm: token not found", Code:http.StatusBadRequest}
+		return c.ResponseProcessor(ctx, w, r, authboss.ResponseData{Id: authboss.ResponseIdConfirm, Error: &procErr})
 	} else if err != nil {
 		return err
 	}
@@ -198,7 +199,6 @@ func (c *Confirm) confirmHandler(ctx *authboss.Context, w http.ResponseWriter, r
 		}
 		ctx.SessionStorer.Put(authboss.SessionKey, key)
 	}
-	response.Redirect(ctx, w, r, c.RegisterOKPath, "You have successfully confirmed your account.", "", true)
 
-	return nil
+	return c.ResponseProcessor(ctx, w, r, authboss.ResponseData{Id: authboss.ResponseIdConfirm})
 }

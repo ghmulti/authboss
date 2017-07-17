@@ -12,9 +12,9 @@ import (
 	"path"
 	"time"
 
+	"github.com/ghmulti/authboss"
 	"golang.org/x/crypto/bcrypt"
-	"gopkg.in/authboss.v1"
-	"gopkg.in/authboss.v1/internal/response"
+	"github.com/ghmulti/authboss/internal/response"
 )
 
 // Storage constants
@@ -31,9 +31,6 @@ const (
 	methodGET  = "GET"
 	methodPOST = "POST"
 
-	tplLogin           = "login.html.tpl"
-	tplRecover         = "recover.html.tpl"
-	tplRecoverComplete = "recover_complete.html.tpl"
 	tplInitHTMLEmail   = "recover_email.html.tpl"
 	tplInitTextEmail   = "recover_email.txt.tpl"
 
@@ -62,7 +59,6 @@ func init() {
 // Recover module
 type Recover struct {
 	*authboss.Authboss
-	templates          response.Templates
 	emailHTMLTemplates response.Templates
 	emailTextTemplates response.Templates
 }
@@ -85,11 +81,6 @@ func (r *Recover) Initialize(ab *authboss.Authboss) (err error) {
 
 	if r.XSRFMaker == nil {
 		return errors.New("auth: XSRFMaker must be defined")
-	}
-
-	r.templates, err = response.LoadTemplates(r.Authboss, r.Layout, r.ViewsPath, tplRecover, tplRecoverComplete)
-	if err != nil {
-		return err
 	}
 
 	r.emailHTMLTemplates, err = response.LoadTemplates(r.Authboss, r.LayoutHTMLEmail, r.ViewsPath, tplInitHTMLEmail)
@@ -126,33 +117,23 @@ func (r *Recover) Storage() authboss.StorageOptions {
 func (rec *Recover) startHandlerFunc(ctx *authboss.Context, w http.ResponseWriter, r *http.Request) error {
 	switch r.Method {
 	case methodGET:
-		data := authboss.NewHTMLData(
-			"primaryID", rec.PrimaryID,
-			"primaryIDValue", "",
-			"confirmPrimaryIDValue", "",
-		)
-
-		return rec.templates.Render(ctx, w, r, tplRecover, data)
+		return rec.ResponseProcessor(ctx, w, r, authboss.ResponseData{
+			Id: authboss.ResponseIdRecover,
+			Data: map[string]interface{} {
+				rec.PrimaryID: "*",
+				fmt.Sprintf("confirm_%s", rec.PrimaryID): "*",
+			},
+		})
 	case methodPOST:
 		primaryID := r.FormValue(rec.PrimaryID)
-		confirmPrimaryID := r.FormValue(fmt.Sprintf("confirm_%s", rec.PrimaryID))
-
-		errData := authboss.NewHTMLData(
-			"primaryID", rec.PrimaryID,
-			"primaryIDValue", primaryID,
-			"confirmPrimaryIDValue", confirmPrimaryID,
-		)
-
 		policies := authboss.FilterValidators(rec.Policies, rec.PrimaryID)
 		if validationErrs := authboss.Validate(r, policies, rec.PrimaryID, authboss.ConfirmPrefix+rec.PrimaryID).Map(); len(validationErrs) > 0 {
-			errData.MergeKV("errs", validationErrs)
-			return rec.templates.Render(ctx, w, r, tplRecover, errData)
+			procErr := authboss.ProcessingError{Name:"Validation error", Code: http.StatusBadRequest}
+			return rec.ResponseProcessor(ctx, w, r, authboss.ResponseData{Id: authboss.ResponseIdRecoverCallback, Error: &procErr})
 		}
 
 		// redirect to login when user not found to prevent username sniffing
-		if err := ctx.LoadUser(primaryID); err == authboss.ErrUserNotFound {
-			return authboss.ErrAndRedirect{Err: err, Location: rec.RecoverOKPath, FlashSuccess: recoverInitiateSuccessFlash}
-		} else if err != nil {
+		if err := ctx.LoadUser(primaryID); err != nil {
 			return err
 		}
 
@@ -176,12 +157,11 @@ func (rec *Recover) startHandlerFunc(ctx *authboss.Context, w http.ResponseWrite
 		goRecoverEmail(rec, ctx, email, encodedToken)
 
 		ctx.SessionStorer.Put(authboss.FlashSuccessKey, recoverInitiateSuccessFlash)
-		response.Redirect(ctx, w, r, rec.RecoverOKPath, "", "", true)
+		return rec.ResponseProcessor(ctx, w, r, authboss.ResponseData{Id: authboss.ResponseIdRecoverCallback})
 	default:
-		w.WriteHeader(http.StatusMethodNotAllowed)
+		procErr := authboss.ProcessingError{Name: "Not supported", Code: http.StatusMethodNotAllowed}
+		return rec.ResponseProcessor(ctx, w, r, authboss.ResponseData{Id: authboss.ResponseIdError, Error: &procErr})
 	}
-
-	return nil
 }
 
 func newToken() (encodedToken, encodedChecksum string, err error) {
@@ -223,14 +203,13 @@ func (r *Recover) completeHandlerFunc(ctx *authboss.Context, w http.ResponseWrit
 	case methodGET:
 		_, err = verifyToken(ctx, req)
 		if err == errRecoveryTokenExpired {
-			return authboss.ErrAndRedirect{Err: err, Location: "/recover", FlashError: recoverTokenExpiredFlash}
+			procErr := authboss.ProcessingError{Name:recoverTokenExpiredFlash, Code: http.StatusBadRequest}
+			return r.ResponseProcessor(ctx, w, req, authboss.ResponseData{Id: authboss.ResponseIdRecoverComplete, Error: &procErr})
 		} else if err != nil {
-			return authboss.ErrAndRedirect{Err: err, Location: "/"}
+			procErr := authboss.ProcessingError{Name:err.Error(), Code: http.StatusInternalServerError}
+			return r.ResponseProcessor(ctx, w, req, authboss.ResponseData{Id: authboss.ResponseIdRecoverComplete, Error: &procErr})
 		}
-
-		token := req.FormValue(formValueToken)
-		data := authboss.NewHTMLData(formValueToken, token)
-		return r.templates.Render(ctx, w, req, tplRecoverComplete, data)
+		return r.ResponseProcessor(ctx, w, req, authboss.ResponseData{Id: authboss.ResponseIdRecoverComplete, Data: map[string]interface{} {formValueToken: "*"}})
 	case methodPOST:
 		token := req.FormValue(formValueToken)
 		if len(token) == 0 {
@@ -242,11 +221,8 @@ func (r *Recover) completeHandlerFunc(ctx *authboss.Context, w http.ResponseWrit
 
 		policies := authboss.FilterValidators(r.Policies, authboss.StorePassword)
 		if validationErrs := authboss.Validate(req, policies, authboss.StorePassword, authboss.ConfirmPrefix+authboss.StorePassword).Map(); len(validationErrs) > 0 {
-			data := authboss.NewHTMLData(
-				formValueToken, token,
-				"errs", validationErrs,
-			)
-			return r.templates.Render(ctx, w, req, tplRecoverComplete, data)
+			procErr := authboss.ProcessingError{"Validation error", http.StatusBadRequest, validationErrs}
+			return r.ResponseProcessor(ctx, w, req, authboss.ResponseData{Id: authboss.ResponseIdRecoverCompleteCallback, Error: &procErr})
 		}
 
 		if ctx.User, err = verifyToken(ctx, req); err != nil {
@@ -279,12 +255,12 @@ func (r *Recover) completeHandlerFunc(ctx *authboss.Context, w http.ResponseWrit
 		if r.Authboss.AllowLoginAfterResetPassword {
 			ctx.SessionStorer.Put(authboss.SessionKey, primaryID)
 		}
-		response.Redirect(ctx, w, req, r.AuthLoginOKPath, "", "", true)
-	default:
-		w.WriteHeader(http.StatusMethodNotAllowed)
-	}
 
-	return nil
+		return r.ResponseProcessor(ctx, w, req, authboss.ResponseData{Id: authboss.ResponseIdRecoverCompleteCallback})
+	default:
+		procErr := authboss.ProcessingError{Name: "Not supported", Code: http.StatusMethodNotAllowed}
+		return r.ResponseProcessor(ctx, w, req, authboss.ResponseData{Id: authboss.ResponseIdError, Error: &procErr})
+	}
 }
 
 // verifyToken expects a base64.URLEncoded token.

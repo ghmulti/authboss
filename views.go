@@ -1,6 +1,34 @@
 package authboss
 
-import "net/http"
+import (
+	"net/http"
+)
+
+const (
+	ResponseIdLogin 				  = "ResponseIdLogin"
+	ResponseIdLoginHandler            = "ResponseIdLoginHandler"
+	ResponseIdLogout                  = "ResponseIdLogout"
+	ResponseIdConfirm                 = "ResponseIdConfirm"
+	ResponseIdOAuth2                  = "ResponseIdOAuth2"
+	ResponseIdOAuth2Callback          = "ResponseIdOAuth2Callback"
+	ResponseIdOAuth2Logout            = "ResponseIdOAuth2Logout"
+	ResponseIdRecover                 = "ResponseIdRecover"
+	ResponseIdRecoverCallback         = "ResponseIdRecoverCallback"
+	ResponseIdRecoverComplete         = "ResponseIdRecoverComplete"
+	ResponseIdRecoverCompleteCallback = "ResponseIdRecoverCompleteCallback"
+	ResponseIdRegister                = "ResponseIdRegister"
+	ResponseIdRegisterCallback        = "ResponseIdRegisterCallback"
+	ResponseIdError                   = "ResponseIdError"
+)
+
+type ResponseProcessor func(ctx *Context, w http.ResponseWriter, r *http.Request, data ResponseData) error
+
+// ResponseData is used to render templates with.
+type ResponseData struct {
+	Id string
+	Error *ProcessingError
+	Data map[string]interface{}
+}
 
 // ViewDataMaker asks for an HTMLData object to assist with rendering.
 type ViewDataMaker func(http.ResponseWriter, *http.Request) HTMLData

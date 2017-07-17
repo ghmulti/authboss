@@ -6,13 +6,9 @@ import (
 	"net/http"
 
 	"golang.org/x/crypto/bcrypt"
-	"gopkg.in/authboss.v1"
-	"gopkg.in/authboss.v1/internal/response"
+	"github.com/ghmulti/authboss"
 )
 
-const (
-	tplRegister = "register.html.tpl"
-)
 
 // RegisterStorer must be implemented in order to satisfy the register module's
 // storage requirments.
@@ -30,7 +26,6 @@ func init() {
 // Register module.
 type Register struct {
 	*authboss.Authboss
-	templates response.Templates
 }
 
 // Initialize the module.
@@ -43,10 +38,6 @@ func (r *Register) Initialize(ab *authboss.Authboss) (err error) {
 		}
 	} else if r.StoreMaker == nil {
 		return errors.New("register: Need a RegisterStorer")
-	}
-
-	if r.templates, err = response.LoadTemplates(r.Authboss, r.Layout, r.ViewsPath, tplRegister); err != nil {
-		return err
 	}
 
 	return nil
@@ -70,18 +61,22 @@ func (r *Register) Storage() authboss.StorageOptions {
 func (reg *Register) registerHandler(ctx *authboss.Context, w http.ResponseWriter, r *http.Request) error {
 	switch r.Method {
 	case "GET":
-		primaryID := r.FormValue("primaryID")
-
-		data := authboss.HTMLData{
-			"primaryID":         reg.PrimaryID,
-			"primaryIDValue":    primaryID,
-			"primaryIDReadonly": len(primaryID) > 0,
+		fields := map[string]interface{}{
+			reg.PrimaryID:     "*",
 		}
-		return reg.templates.Render(ctx, w, r, tplRegister, data)
+		for _,v := range reg.ConfirmFields {
+			fields[v] = "*"
+		}
+		return reg.ResponseProcessor(ctx, w, r, authboss.ResponseData{
+			Id:   authboss.ResponseIdRegister,
+			Data: fields,
+		})
 	case "POST":
 		return reg.registerPostHandler(ctx, w, r)
+	default:
+		procErr := authboss.ProcessingError{Name: "Not supported", Code: http.StatusMethodNotAllowed}
+		return reg.ResponseProcessor(ctx, w, r, authboss.ResponseData{Id: authboss.ResponseIdError, Error: &procErr})
 	}
-	return nil
 }
 
 func (reg *Register) registerPostHandler(ctx *authboss.Context, w http.ResponseWriter, r *http.Request) error {
@@ -97,17 +92,8 @@ func (reg *Register) registerPostHandler(ctx *authboss.Context, w http.ResponseW
 	}
 
 	if len(validationErrs) != 0 {
-		data := authboss.HTMLData{
-			"primaryID":      reg.PrimaryID,
-			"primaryIDValue": key,
-			"errs":           validationErrs.Map(),
-		}
-
-		for _, f := range reg.PreserveFields {
-			data[f] = r.FormValue(f)
-		}
-
-		return reg.templates.Render(ctx, w, r, tplRegister, data)
+		procErr := authboss.ProcessingError{Name: "Validation error", Code: http.StatusBadRequest, Data: validationErrs.Map()}
+		return reg.ResponseProcessor(ctx, w, r, authboss.ResponseData{Id: authboss.ResponseIdRegisterCallback, Error: &procErr})
 	}
 
 	attr, err := authboss.AttributesFromRequest(r) // Attributes from overriden forms
@@ -125,17 +111,8 @@ func (reg *Register) registerPostHandler(ctx *authboss.Context, w http.ResponseW
 	ctx.User = attr
 
 	if err := ctx.Storer.(RegisterStorer).Create(key, attr); err == authboss.ErrUserFound {
-		data := authboss.HTMLData{
-			"primaryID":      reg.PrimaryID,
-			"primaryIDValue": key,
-			"errs":           map[string][]string{reg.PrimaryID: []string{"Already in use"}},
-		}
-
-		for _, f := range reg.PreserveFields {
-			data[f] = r.FormValue(f)
-		}
-
-		return reg.templates.Render(ctx, w, r, tplRegister, data)
+		procErr := authboss.ProcessingError{Name: "Already in use", Code: http.StatusBadRequest}
+		return reg.ResponseProcessor(ctx, w, r, authboss.ResponseData{Id: authboss.ResponseIdRegisterCallback, Error: &procErr})
 	} else if err != nil {
 		return err
 	}
@@ -145,12 +122,12 @@ func (reg *Register) registerPostHandler(ctx *authboss.Context, w http.ResponseW
 	}
 
 	if reg.IsLoaded("confirm") {
-		response.Redirect(ctx, w, r, reg.RegisterOKPath, "Account successfully created, please verify your e-mail address.", "", true)
-		return nil
+		status := map[string]interface{}{"status": "Account successfully created, please verify your e-mail address."}
+		return reg.ResponseProcessor(ctx, w, r, authboss.ResponseData{Id: authboss.ResponseIdRegisterCallback, Data: status})
 	}
 
 	ctx.SessionStorer.Put(authboss.SessionKey, key)
-	response.Redirect(ctx, w, r, reg.RegisterOKPath, "Account successfully created, you are now logged in.", "", true)
 
-	return nil
+	status := map[string]interface{}{"status": "Account successfully created, you are now logged in."}
+	return reg.ResponseProcessor(ctx, w, r, authboss.ResponseData{Id: authboss.ResponseIdRegisterCallback, Data: status})
 }

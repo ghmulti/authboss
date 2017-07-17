@@ -7,14 +7,12 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"net/url"
 	"path"
 	"path/filepath"
 	"strings"
 
 	"golang.org/x/oauth2"
-	"gopkg.in/authboss.v1"
-	"gopkg.in/authboss.v1/internal/response"
+	"github.com/ghmulti/authboss"
 )
 
 var (
@@ -116,8 +114,7 @@ func (o *OAuth2) oauthInit(ctx *authboss.Context, w http.ResponseWriter, r *http
 		url = fmt.Sprintf("%s&%s", url, extraParams)
 	}
 
-	http.Redirect(w, r, url, http.StatusFound)
-	return nil
+	return o.ResponseProcessor(ctx, w, r, authboss.ResponseData{Id: authboss.ResponseIdOAuth2, Data: map[string]interface{}{"url":  url}})
 }
 
 // for testing
@@ -147,11 +144,9 @@ func (o *OAuth2) oauthCallback(ctx *authboss.Context, w http.ResponseWriter, r *
 			return err
 		}
 
-		return authboss.ErrAndRedirect{
-			Err:        errors.New(r.FormValue("error_reason")),
-			Location:   o.AuthLoginFailPath,
-			FlashError: fmt.Sprintf("%s login cancelled or failed.", strings.Title(provider)),
-		}
+		msg := fmt.Sprintf("%s login cancelled or failed.", strings.Title(provider))
+		procErr := authboss.ProcessingError{Name: msg, Code: http.StatusInternalServerError}
+		return o.ResponseProcessor(ctx, w, r, authboss.ResponseData{Id: authboss.ResponseIdOAuth2Callback, Error: &procErr})
 	}
 
 	cfg, ok := o.OAuth2Providers[provider]
@@ -206,25 +201,7 @@ func (o *OAuth2) oauthCallback(ctx *authboss.Context, w http.ResponseWriter, r *
 
 	ctx.SessionStorer.Del(authboss.SessionOAuth2Params)
 
-	redirect := o.AuthLoginOKPath
-	query := make(url.Values)
-	for k, v := range values {
-		switch k {
-		case authboss.CookieRemember:
-		case authboss.FormValueRedirect:
-			redirect = v
-		default:
-			query.Set(k, v)
-		}
-	}
-
-	if len(query) > 0 {
-		redirect = fmt.Sprintf("%s?%s", redirect, query.Encode())
-	}
-
-	sf := fmt.Sprintf("Logged in successfully with %s.", strings.Title(provider))
-	response.Redirect(ctx, w, r, redirect, sf, "", false)
-	return nil
+	return o.ResponseProcessor(ctx, w, r, authboss.ResponseData{Id: authboss.ResponseIdOAuth2Callback})
 }
 
 func (o *OAuth2) logout(ctx *authboss.Context, w http.ResponseWriter, r *http.Request) error {
@@ -233,11 +210,9 @@ func (o *OAuth2) logout(ctx *authboss.Context, w http.ResponseWriter, r *http.Re
 		ctx.SessionStorer.Del(authboss.SessionKey)
 		ctx.CookieStorer.Del(authboss.CookieRemember)
 		ctx.SessionStorer.Del(authboss.SessionLastAction)
-
-		response.Redirect(ctx, w, r, o.AuthLogoutOKPath, "You have logged out", "", true)
+		return o.ResponseProcessor(ctx, w, r, authboss.ResponseData{Id: authboss.ResponseIdOAuth2Logout})
 	default:
-		w.WriteHeader(http.StatusMethodNotAllowed)
+		procErr := authboss.ProcessingError{Name: "Not supported", Code: http.StatusMethodNotAllowed}
+		return o.ResponseProcessor(ctx, w, r, authboss.ResponseData{Id: authboss.ResponseIdError, Error: &procErr})
 	}
-
-	return nil
 }

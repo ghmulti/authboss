@@ -28,6 +28,17 @@ func (a AttributeErr) Error() string {
 	return fmt.Sprintf("Failed to retrieve database attribute, type was wrong: %s (want: %v, got: %s)", a.Name, a.WantKind, a.GotKind)
 }
 
+type ProcessingError struct {
+	Name string
+	Code int
+	Data interface{}
+}
+
+func (e ProcessingError) Error() string {
+	return string(e.Code) + ":" + e.Name
+}
+
+
 // ClientDataErr represents a failure to retrieve a critical
 // piece of client information such as a cookie or session value.
 type ClientDataErr struct {

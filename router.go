@@ -131,11 +131,7 @@ func redirectIfLoggedIn(ctx *Context, w http.ResponseWriter, r *http.Request) (h
 	}
 
 	if cu != nil {
-		if redir := r.FormValue(FormValueRedirect); len(redir) > 0 {
-			http.Redirect(w, r, redir, http.StatusFound)
-		} else {
-			http.Redirect(w, r, ctx.AuthLoginOKPath, http.StatusFound)
-		}
+		// TODO: fix
 		return true
 	}
 

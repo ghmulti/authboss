@@ -55,21 +55,9 @@ type Config struct {
 	// NotFoundHandler handles would be 404 errors.
 	NotFoundHandler http.Handler
 
-	// AuthLoginOKPath is the redirect path after a successful authentication.
-	AuthLoginOKPath string
-	// AuthLoginFailPath is the redirect path after a failed authentication.
-	AuthLoginFailPath string
-	// AuthLogoutOKPath is the redirect path after a log out.
-	AuthLogoutOKPath string
-
-	// RecoverOKPath is the redirect path after a successful recovery of a password.
-	RecoverOKPath string
 	// RecoverTokenDuration controls how long a token sent via email for password
 	// recovery is valid for.
 	RecoverTokenDuration time.Duration
-
-	// RegisterOKPath is the redirect path after a successful registration.
-	RegisterOKPath string
 
 	// Policies control validation of form fields and are automatically run
 	// against form posts that include the fields.
@@ -153,6 +141,9 @@ type Config struct {
 	MailMaker MailMaker
 	// ContextProvider provides a context for a given request
 	ContextProvider func(*http.Request) context.Context
+
+
+	ResponseProcessor ResponseProcessor
 }
 
 // Defaults sets the configuration's default values.
@@ -168,14 +159,7 @@ func (c *Config) Defaults() {
 	c.LayoutHTMLEmail = template.Must(template.New("").Parse(`<!DOCTYPE html><html><body>{{template "authboss" .}}</body></html>`))
 	c.LayoutTextEmail = template.Must(template.New("").Parse(`{{template "authboss" .}}`))
 
-	c.AuthLoginOKPath = "/"
-	c.AuthLoginFailPath = "/"
-	c.AuthLogoutOKPath = "/"
-
-	c.RecoverOKPath = "/"
 	c.RecoverTokenDuration = time.Duration(24) * time.Hour
-
-	c.RegisterOKPath = "/"
 
 	c.Policies = []Validator{
 		Rules{
