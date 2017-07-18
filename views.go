@@ -21,7 +21,7 @@ const (
 	ResponseIdError                   = "ResponseIdError"
 )
 
-type ResponseProcessor func(ctx *Context, w http.ResponseWriter, r *http.Request, data ResponseData) error
+type ResponseProcessor func(ctx *Context, w http.ResponseWriter, r *http.Request, data *ResponseData) error
 
 // ResponseData is used to render templates with.
 type ResponseData struct {

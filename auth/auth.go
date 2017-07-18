@@ -66,7 +66,7 @@ func (a *Auth) Storage() authboss.StorageOptions {
 func (a *Auth) loginHandlerFunc(ctx *authboss.Context, w http.ResponseWriter, r *http.Request) error {
 	switch r.Method {
 	case methodGET:
-		return a.ResponseProcessor(ctx, w, r, authboss.ResponseData{
+		return a.ResponseProcessor(ctx, w, r, &authboss.ResponseData{
 			Id: authboss.ResponseIdLogin,
 			Data: map[string]interface{}{
 				"rememberme": a.IsLoaded("remember"),
@@ -83,13 +83,13 @@ func (a *Auth) loginHandlerFunc(ctx *authboss.Context, w http.ResponseWriter, r 
 		if valid, err := validateCredentials(ctx, key, password); err != nil {
 			fmt.Fprintf(ctx.LogWriter, "auth: validate credentials failed: %v\n", err)
 			procErr := authboss.ProcessingError{Name: "Internal server error", Code: http.StatusUnauthorized}
-			return a.ResponseProcessor(ctx, w, r, authboss.ResponseData{Id: authboss.ResponseIdLoginHandler, Error: &procErr})
+			return a.ResponseProcessor(ctx, w, r, &authboss.ResponseData{Id: authboss.ResponseIdLoginHandler, Error: &procErr})
 		} else if !valid {
 			if err := a.Callbacks.FireAfter(authboss.EventAuthFail, ctx); err != nil {
 				fmt.Fprintf(ctx.LogWriter, "EventAuthFail callback error'd out: %v\n", err)
 			}
 			procErr := authboss.ProcessingError{Name: fmt.Sprintf("invalid %s and/or password", a.PrimaryID), Code: http.StatusUnauthorized}
-			return a.ResponseProcessor(ctx, w, r, authboss.ResponseData{Id: authboss.ResponseIdLoginHandler, Error: &procErr})
+			return a.ResponseProcessor(ctx, w, r, &authboss.ResponseData{Id: authboss.ResponseIdLoginHandler, Error: &procErr})
 		}
 
 		interrupted, err := a.Callbacks.FireBefore(authboss.EventAuth, ctx)
@@ -104,7 +104,7 @@ func (a *Auth) loginHandlerFunc(ctx *authboss.Context, w http.ResponseWriter, r 
 				reason = "Your account has not been confirmed."
 			}
 			procErr := authboss.ProcessingError{Name: reason, Code: http.StatusForbidden}
-			return a.ResponseProcessor(ctx, w, r, authboss.ResponseData{Id: authboss.ResponseIdLoginHandler, Error: &procErr})
+			return a.ResponseProcessor(ctx, w, r, &authboss.ResponseData{Id: authboss.ResponseIdLoginHandler, Error: &procErr})
 		}
 
 		ctx.SessionStorer.Put(authboss.SessionKey, key)
@@ -115,10 +115,10 @@ func (a *Auth) loginHandlerFunc(ctx *authboss.Context, w http.ResponseWriter, r 
 			return err
 		}
 
-		return a.ResponseProcessor(ctx, w, r, authboss.ResponseData{Id: authboss.ResponseIdLoginHandler})
+		return a.ResponseProcessor(ctx, w, r, &authboss.ResponseData{Id: authboss.ResponseIdLoginHandler})
 	default:
 		procErr := authboss.ProcessingError{Name: "Not supported", Code: http.StatusMethodNotAllowed}
-		return a.ResponseProcessor(ctx, w, r, authboss.ResponseData{Id: authboss.ResponseIdError, Error: &procErr})
+		return a.ResponseProcessor(ctx, w, r, &authboss.ResponseData{Id: authboss.ResponseIdError, Error: &procErr})
 	}
 }
 
@@ -147,9 +147,9 @@ func (a *Auth) logoutHandlerFunc(ctx *authboss.Context, w http.ResponseWriter, r
 		ctx.SessionStorer.Del(authboss.SessionKey)
 		ctx.CookieStorer.Del(authboss.CookieRemember)
 		ctx.SessionStorer.Del(authboss.SessionLastAction)
-		return a.ResponseProcessor(ctx, w, r, authboss.ResponseData{Id: authboss.ResponseIdLogout})
+		return a.ResponseProcessor(ctx, w, r, &authboss.ResponseData{Id: authboss.ResponseIdLogout})
 	default:
 		procErr := authboss.ProcessingError{Name: "Not supported", Code: http.StatusMethodNotAllowed}
-		return a.ResponseProcessor(ctx, w, r, authboss.ResponseData{Id: authboss.ResponseIdLogout, Error: &procErr})
+		return a.ResponseProcessor(ctx, w, r, &authboss.ResponseData{Id: authboss.ResponseIdLogout, Error: &procErr})
 	}
 }

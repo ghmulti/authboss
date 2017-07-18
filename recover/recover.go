@@ -117,7 +117,7 @@ func (r *Recover) Storage() authboss.StorageOptions {
 func (rec *Recover) startHandlerFunc(ctx *authboss.Context, w http.ResponseWriter, r *http.Request) error {
 	switch r.Method {
 	case methodGET:
-		return rec.ResponseProcessor(ctx, w, r, authboss.ResponseData{
+		return rec.ResponseProcessor(ctx, w, r, &authboss.ResponseData{
 			Id: authboss.ResponseIdRecover,
 			Data: map[string]interface{} {
 				rec.PrimaryID: "*",
@@ -129,7 +129,7 @@ func (rec *Recover) startHandlerFunc(ctx *authboss.Context, w http.ResponseWrite
 		policies := authboss.FilterValidators(rec.Policies, rec.PrimaryID)
 		if validationErrs := authboss.Validate(r, policies, rec.PrimaryID, authboss.ConfirmPrefix+rec.PrimaryID).Map(); len(validationErrs) > 0 {
 			procErr := authboss.ProcessingError{Name:"Validation error", Code: http.StatusBadRequest}
-			return rec.ResponseProcessor(ctx, w, r, authboss.ResponseData{Id: authboss.ResponseIdRecoverCallback, Error: &procErr})
+			return rec.ResponseProcessor(ctx, w, r, &authboss.ResponseData{Id: authboss.ResponseIdRecoverCallback, Error: &procErr})
 		}
 
 		// redirect to login when user not found to prevent username sniffing
@@ -157,10 +157,10 @@ func (rec *Recover) startHandlerFunc(ctx *authboss.Context, w http.ResponseWrite
 		goRecoverEmail(rec, ctx, email, encodedToken)
 
 		ctx.SessionStorer.Put(authboss.FlashSuccessKey, recoverInitiateSuccessFlash)
-		return rec.ResponseProcessor(ctx, w, r, authboss.ResponseData{Id: authboss.ResponseIdRecoverCallback})
+		return rec.ResponseProcessor(ctx, w, r, &authboss.ResponseData{Id: authboss.ResponseIdRecoverCallback})
 	default:
 		procErr := authboss.ProcessingError{Name: "Not supported", Code: http.StatusMethodNotAllowed}
-		return rec.ResponseProcessor(ctx, w, r, authboss.ResponseData{Id: authboss.ResponseIdError, Error: &procErr})
+		return rec.ResponseProcessor(ctx, w, r, &authboss.ResponseData{Id: authboss.ResponseIdError, Error: &procErr})
 	}
 }
 
@@ -204,12 +204,12 @@ func (r *Recover) completeHandlerFunc(ctx *authboss.Context, w http.ResponseWrit
 		_, err = verifyToken(ctx, req)
 		if err == errRecoveryTokenExpired {
 			procErr := authboss.ProcessingError{Name:recoverTokenExpiredFlash, Code: http.StatusBadRequest}
-			return r.ResponseProcessor(ctx, w, req, authboss.ResponseData{Id: authboss.ResponseIdRecoverComplete, Error: &procErr})
+			return r.ResponseProcessor(ctx, w, req, &authboss.ResponseData{Id: authboss.ResponseIdRecoverComplete, Error: &procErr})
 		} else if err != nil {
 			procErr := authboss.ProcessingError{Name:err.Error(), Code: http.StatusInternalServerError}
-			return r.ResponseProcessor(ctx, w, req, authboss.ResponseData{Id: authboss.ResponseIdRecoverComplete, Error: &procErr})
+			return r.ResponseProcessor(ctx, w, req, &authboss.ResponseData{Id: authboss.ResponseIdRecoverComplete, Error: &procErr})
 		}
-		return r.ResponseProcessor(ctx, w, req, authboss.ResponseData{Id: authboss.ResponseIdRecoverComplete, Data: map[string]interface{} {formValueToken: "*"}})
+		return r.ResponseProcessor(ctx, w, req, &authboss.ResponseData{Id: authboss.ResponseIdRecoverComplete, Data: map[string]interface{} {formValueToken: "*"}})
 	case methodPOST:
 		token := req.FormValue(formValueToken)
 		if len(token) == 0 {
@@ -222,7 +222,7 @@ func (r *Recover) completeHandlerFunc(ctx *authboss.Context, w http.ResponseWrit
 		policies := authboss.FilterValidators(r.Policies, authboss.StorePassword)
 		if validationErrs := authboss.Validate(req, policies, authboss.StorePassword, authboss.ConfirmPrefix+authboss.StorePassword).Map(); len(validationErrs) > 0 {
 			procErr := authboss.ProcessingError{"Validation error", http.StatusBadRequest, validationErrs}
-			return r.ResponseProcessor(ctx, w, req, authboss.ResponseData{Id: authboss.ResponseIdRecoverCompleteCallback, Error: &procErr})
+			return r.ResponseProcessor(ctx, w, req, &authboss.ResponseData{Id: authboss.ResponseIdRecoverCompleteCallback, Error: &procErr})
 		}
 
 		if ctx.User, err = verifyToken(ctx, req); err != nil {
@@ -256,10 +256,10 @@ func (r *Recover) completeHandlerFunc(ctx *authboss.Context, w http.ResponseWrit
 			ctx.SessionStorer.Put(authboss.SessionKey, primaryID)
 		}
 
-		return r.ResponseProcessor(ctx, w, req, authboss.ResponseData{Id: authboss.ResponseIdRecoverCompleteCallback})
+		return r.ResponseProcessor(ctx, w, req, &authboss.ResponseData{Id: authboss.ResponseIdRecoverCompleteCallback})
 	default:
 		procErr := authboss.ProcessingError{Name: "Not supported", Code: http.StatusMethodNotAllowed}
-		return r.ResponseProcessor(ctx, w, req, authboss.ResponseData{Id: authboss.ResponseIdError, Error: &procErr})
+		return r.ResponseProcessor(ctx, w, req, &authboss.ResponseData{Id: authboss.ResponseIdError, Error: &procErr})
 	}
 }
 

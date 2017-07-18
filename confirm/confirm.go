@@ -164,13 +164,13 @@ func (c *Confirm) confirmHandler(ctx *authboss.Context, w http.ResponseWriter, r
 	token := r.FormValue(FormValueConfirm)
 	if len(token) == 0 {
 		procErr := authboss.ProcessingError{Name: FormValueConfirm + " is required"}
-		return c.ResponseProcessor(ctx, w, r, authboss.ResponseData{Id: authboss.ResponseIdConfirm, Error: &procErr})
+		return c.ResponseProcessor(ctx, w, r, &authboss.ResponseData{Id: authboss.ResponseIdConfirm, Error: &procErr})
 	}
 
 	toHash, err := base64.URLEncoding.DecodeString(token)
 	if err != nil {
 		procErr := authboss.ProcessingError{Name:"confirm: token failed to decode", Code:http.StatusBadRequest}
-		return c.ResponseProcessor(ctx, w, r, authboss.ResponseData{Id: authboss.ResponseIdConfirm, Error: &procErr})
+		return c.ResponseProcessor(ctx, w, r, &authboss.ResponseData{Id: authboss.ResponseIdConfirm, Error: &procErr})
 	}
 
 	sum := md5.Sum(toHash)
@@ -179,7 +179,7 @@ func (c *Confirm) confirmHandler(ctx *authboss.Context, w http.ResponseWriter, r
 	user, err := ctx.Storer.(ConfirmStorer).ConfirmUser(dbTok)
 	if err == authboss.ErrUserNotFound {
 		procErr := authboss.ProcessingError{Name: "confirm: token not found", Code:http.StatusBadRequest}
-		return c.ResponseProcessor(ctx, w, r, authboss.ResponseData{Id: authboss.ResponseIdConfirm, Error: &procErr})
+		return c.ResponseProcessor(ctx, w, r, &authboss.ResponseData{Id: authboss.ResponseIdConfirm, Error: &procErr})
 	} else if err != nil {
 		return err
 	}
@@ -200,5 +200,5 @@ func (c *Confirm) confirmHandler(ctx *authboss.Context, w http.ResponseWriter, r
 		ctx.SessionStorer.Put(authboss.SessionKey, key)
 	}
 
-	return c.ResponseProcessor(ctx, w, r, authboss.ResponseData{Id: authboss.ResponseIdConfirm})
+	return c.ResponseProcessor(ctx, w, r, &authboss.ResponseData{Id: authboss.ResponseIdConfirm})
 }

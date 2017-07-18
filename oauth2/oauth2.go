@@ -114,7 +114,7 @@ func (o *OAuth2) oauthInit(ctx *authboss.Context, w http.ResponseWriter, r *http
 		url = fmt.Sprintf("%s&%s", url, extraParams)
 	}
 
-	return o.ResponseProcessor(ctx, w, r, authboss.ResponseData{Id: authboss.ResponseIdOAuth2, Data: map[string]interface{}{"url":  url}})
+	return o.ResponseProcessor(ctx, w, r, &authboss.ResponseData{Id: authboss.ResponseIdOAuth2, Data: map[string]interface{}{"url":  url}})
 }
 
 // for testing
@@ -146,7 +146,7 @@ func (o *OAuth2) oauthCallback(ctx *authboss.Context, w http.ResponseWriter, r *
 
 		msg := fmt.Sprintf("%s login cancelled or failed.", strings.Title(provider))
 		procErr := authboss.ProcessingError{Name: msg, Code: http.StatusInternalServerError}
-		return o.ResponseProcessor(ctx, w, r, authboss.ResponseData{Id: authboss.ResponseIdOAuth2Callback, Error: &procErr})
+		return o.ResponseProcessor(ctx, w, r, &authboss.ResponseData{Id: authboss.ResponseIdOAuth2Callback, Error: &procErr})
 	}
 
 	cfg, ok := o.OAuth2Providers[provider]
@@ -201,7 +201,7 @@ func (o *OAuth2) oauthCallback(ctx *authboss.Context, w http.ResponseWriter, r *
 
 	ctx.SessionStorer.Del(authboss.SessionOAuth2Params)
 
-	return o.ResponseProcessor(ctx, w, r, authboss.ResponseData{Id: authboss.ResponseIdOAuth2Callback})
+	return o.ResponseProcessor(ctx, w, r, &authboss.ResponseData{Id: authboss.ResponseIdOAuth2Callback})
 }
 
 func (o *OAuth2) logout(ctx *authboss.Context, w http.ResponseWriter, r *http.Request) error {
@@ -210,9 +210,9 @@ func (o *OAuth2) logout(ctx *authboss.Context, w http.ResponseWriter, r *http.Re
 		ctx.SessionStorer.Del(authboss.SessionKey)
 		ctx.CookieStorer.Del(authboss.CookieRemember)
 		ctx.SessionStorer.Del(authboss.SessionLastAction)
-		return o.ResponseProcessor(ctx, w, r, authboss.ResponseData{Id: authboss.ResponseIdOAuth2Logout})
+		return o.ResponseProcessor(ctx, w, r, &authboss.ResponseData{Id: authboss.ResponseIdOAuth2Logout})
 	default:
 		procErr := authboss.ProcessingError{Name: "Not supported", Code: http.StatusMethodNotAllowed}
-		return o.ResponseProcessor(ctx, w, r, authboss.ResponseData{Id: authboss.ResponseIdError, Error: &procErr})
+		return o.ResponseProcessor(ctx, w, r, &authboss.ResponseData{Id: authboss.ResponseIdError, Error: &procErr})
 	}
 }
