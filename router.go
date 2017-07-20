@@ -28,6 +28,7 @@ func (a *Authboss) NewRouter() http.Handler {
 		}
 	}
 
+	/*
 	a.mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		if a.NotFoundHandler != nil {
 			a.NotFoundHandler.ServeHTTP(w, r)
@@ -36,6 +37,7 @@ func (a *Authboss) NewRouter() http.Handler {
 			io.WriteString(w, "404 Page not found")
 		}
 	})
+	*/
 
 	return a.mux
 }
@@ -98,7 +100,7 @@ func (c contextRoute) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 // configuration or something more interesting.
 func redirectIfLoggedIn(ctx *Context, w http.ResponseWriter, r *http.Request) (handled bool) {
 	// If it's a log out url, always let it pass through.
-	if strings.HasSuffix(r.URL.Path, "/logout") {
+	if strings.HasSuffix(r.URL.Path, "/logout") || strings.HasSuffix(r.URL.Path, "/confirm") {
 		return false
 	}
 
@@ -131,7 +133,6 @@ func redirectIfLoggedIn(ctx *Context, w http.ResponseWriter, r *http.Request) (h
 	}
 
 	if cu != nil {
-		// TODO: fix
 		return true
 	}
 

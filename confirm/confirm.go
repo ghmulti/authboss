@@ -200,5 +200,5 @@ func (c *Confirm) confirmHandler(ctx *authboss.Context, w http.ResponseWriter, r
 		ctx.SessionStorer.Put(authboss.SessionKey, key)
 	}
 
-	return c.ResponseProcessor(ctx, w, r, &authboss.ResponseData{Id: authboss.ResponseIdConfirm})
+	return c.ResponseProcessor(ctx, w, r, &authboss.ResponseData{Id: authboss.ResponseIdConfirm, Data: map[string]interface{}{StoreConfirmed: true}})
 }
